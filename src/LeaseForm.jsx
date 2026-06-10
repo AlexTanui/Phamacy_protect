@@ -3,6 +3,8 @@ import LighthouseLogo from './LighthouseLogo'
 import styles from './LeaseForm.module.css'
 
 const FORMSPREE_ENDPOINT = 'https://formspree.io/f/xqeobala'
+const CLOUDINARY_CLOUD_NAME = 'drgpnvqa8'
+const CLOUDINARY_UPLOAD_PRESET = 'Phamacy protect'
 
 const CPI_STATES = [
   'Sydney', 'Melbourne', 'Brisbane', 'Adelaide', 'Perth',
@@ -160,6 +162,20 @@ export default function LeaseForm() {
     setTimeout(() => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
   }
 
+  const uploadToCloudinary = async (file) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    fd.append('upload_preset', CLOUDINARY_UPLOAD_PRESET)
+
+    const res = await fetch(
+      `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`,
+      { method: 'POST', body: fd }
+    )
+    if (!res.ok) throw new Error(`Upload failed: ${res.statusText}`)
+    const data = await res.json()
+    return data.secure_url
+  }
+
   const validate = () => {
     const errs = {}
     if (!form.tradingName.trim()) errs.tradingName = 'Required'
@@ -281,10 +297,26 @@ ${files.length ? files.map((f) => `• ${f.name}`).join('\n') : 'No documents at
         `.trim()
       }
 
+      // Upload files to Cloudinary and get URLs
+      const fileUrls = []
+      if (files.length > 0) {
+        for (const file of files) {
+          const url = await uploadToCloudinary(file)
+          fileUrls.push({ name: file.name, url })
+        }
+      }
+
+      // Add file URLs to message
+      if (fileUrls.length > 0) {
+        messageBody += '\n\nDOWNLOAD LINKS\n--------------\n'
+        fileUrls.forEach((f) => {
+          messageBody += `${f.name}: ${f.url}\n`
+        })
+      }
+
       const fd = new FormData()
       fd.append('_subject', subject)
       fd.append('message', messageBody)
-      files.forEach((f) => fd.append('attachment', f))
 
       const res = await fetch(FORMSPREE_ENDPOINT, {
         method: 'POST',
