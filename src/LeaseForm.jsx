@@ -25,11 +25,7 @@ const EMPTY_FORM = {
   leaseCommencementDate: '',
   leaseExpiryDate: '',
   hasOptionToRenew: '',
-  renewalDurationYears: '',
-  renewalDurationMonths: '',
-  renewalDurationDays: '',
-  firstNoticeMonths: '',
-  lastNoticeMonths: '',
+  renewalOptions: [],
   hasMarketReview: '',
   currentBaseRent: '',
   currentOutgoings: '',
@@ -40,6 +36,14 @@ const EMPTY_FORM = {
   cpiState: '',
   additionalPercentage: '',
   fixedAmount: '',
+}
+
+const EMPTY_RENEWAL = {
+  renewalDurationYears: '',
+  renewalDurationMonths: '',
+  renewalDurationDays: '',
+  firstNoticeMonths: '',
+  lastNoticeMonths: '',
 }
 
 function Field({ label, required, error, hint, children }) {
@@ -65,20 +69,19 @@ function formatCurrency(value) {
 }
 
 export default function LeaseForm() {
-  // 'form' | 'document' — which path the user has chosen
   const [mode, setMode]             = useState(null)
   const [form, setForm]             = useState(EMPTY_FORM)
   const [files, setFiles]           = useState([])
   const [dragOver, setDragOver]     = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  const [status, setStatus]         = useState(null) // 'success' | 'error' | null
-  const [errorDetail, setErrorDetail] = useState('')
+  const [status, setStatus]         = useState(null)
   const [errors, setErrors]         = useState({})
+  const [errorDetail, setErrorDetail] = useState('')
   const fileInputRef = useRef(null)
   const formRef      = useRef(null)
 
   const showRenewalFields = form.hasOptionToRenew === 'Yes'
-  const showFixedPct      = form.annualRentReviews === 'Fixed %' || form.annualRentReviews === 'CPI + Percentage'
+  const showFixedPct      = form.annualRentReviews === 'Fixed %'
   const showCpiState      = form.annualRentReviews === 'CPI Only' || form.annualRentReviews === 'CPI + Percentage'
   const showAdditionalPct = form.annualRentReviews === 'CPI + Percentage'
   const showFixedAmount   = form.annualRentReviews === 'Fixed Amount ($)'
@@ -99,6 +102,36 @@ export default function LeaseForm() {
     const val = e.target.value.replace(/[^\d]/g, '')
     setForm((prev) => ({ ...prev, [field]: val }))
     if (errors[field]) setErrors((prev) => ({ ...prev, [field]: undefined }))
+  }
+
+  const setRenewal = (idx, field) => (e) => {
+    const val = e.target.value
+    setForm((prev) => ({
+      ...prev,
+      renewalOptions: prev.renewalOptions.map((r, i) => i === idx ? { ...r, [field]: val } : r)
+    }))
+  }
+
+  const setRenewalInt = (idx, field) => (e) => {
+    const val = e.target.value.replace(/[^\d]/g, '')
+    setForm((prev) => ({
+      ...prev,
+      renewalOptions: prev.renewalOptions.map((r, i) => i === idx ? { ...r, [field]: val } : r)
+    }))
+  }
+
+  const addRenewal = () => {
+    setForm((prev) => ({
+      ...prev,
+      renewalOptions: [...prev.renewalOptions, { ...EMPTY_RENEWAL }]
+    }))
+  }
+
+  const removeRenewal = (idx) => {
+    setForm((prev) => ({
+      ...prev,
+      renewalOptions: prev.renewalOptions.filter((_, i) => i !== idx)
+    }))
   }
 
   const addFiles = useCallback((incoming) => {
@@ -124,7 +157,6 @@ export default function LeaseForm() {
     setMode(next)
     setErrors({})
     setStatus(null)
-    // scroll form into view after a tick so the new content is rendered
     setTimeout(() => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
   }
 
@@ -137,22 +169,29 @@ export default function LeaseForm() {
       return errs
     }
 
-    // full form validation
     if (!form.lessee.trim())             errs.lessee = 'Required'
     if (!form.lessor.trim())             errs.lessor = 'Required'
     if (!form.leaseCommencementDate)     errs.leaseCommencementDate = 'Required'
     if (!form.leaseExpiryDate)           errs.leaseExpiryDate = 'Required'
+    if (form.leaseExpiryDate && form.leaseCommencementDate && form.leaseExpiryDate < form.leaseCommencementDate) {
+      errs.leaseExpiryDate = 'Expiry date must be after commencement date'
+    }
     if (!form.hasOptionToRenew)          errs.hasOptionToRenew = 'Required'
-    if (!form.hasMarketReview)           errs.hasMarketReview = 'Required'
     if (!form.currentBaseRent)           errs.currentBaseRent = 'Required'
-    if (!form.currentOutgoings)          errs.currentOutgoings = 'Required'
     if (!form.currentGrossRent)          errs.currentGrossRent = 'Required'
     if (!form.tenancyArea)               errs.tenancyArea = 'Required'
     if (!form.annualRentReviews)         errs.annualRentReviews = 'Required'
-    if (showRenewalFields) {
-      if (!form.firstNoticeMonths)       errs.firstNoticeMonths = 'Required'
-      if (!form.lastNoticeMonths)        errs.lastNoticeMonths = 'Required'
+
+    if (showRenewalFields && form.renewalOptions.length === 0) {
+      errs.renewalOptions = 'Add at least one renewal duration option'
     }
+
+    form.renewalOptions.forEach((opt, idx) => {
+      if (opt.firstNoticeMonths && opt.lastNoticeMonths && parseInt(opt.firstNoticeMonths) < parseInt(opt.lastNoticeMonths)) {
+        errs[`renewal_${idx}_notice`] = 'First notice must be ≥ Last notice'
+      }
+    })
+
     if (showFixedPct && !form.fixedPercentage)           errs.fixedPercentage = 'Required'
     if (showCpiState && !form.cpiState)                  errs.cpiState = 'Required'
     if (showAdditionalPct && !form.additionalPercentage) errs.additionalPercentage = 'Required'
@@ -173,6 +212,7 @@ export default function LeaseForm() {
 
     setSubmitting(true)
     setStatus(null)
+    setErrorDetail('')
 
     try {
       let messageBody
@@ -193,14 +233,11 @@ ${files.map((f) => `• ${f.name}`).join('\n')}
       } else {
         subject = `${form.tradingName} – Lease Details`
 
-        const renewalSection = showRenewalFields
-          ? `
-Renewal Duration (Years):             ${form.renewalDurationYears || '—'}
-Renewal Duration (Months):            ${form.renewalDurationMonths || '—'}
-Renewal Duration (Days):              ${form.renewalDurationDays || '—'}
-First Date to Give Notice (Months Prior): ${form.firstNoticeMonths}
-Last Date to Give Notice (Months Prior):  ${form.lastNoticeMonths}`
-          : 'N/A'
+        const renewalSection = form.renewalOptions.map((opt, idx) => `
+Renewal Option ${idx + 1}:
+  Duration: ${opt.renewalDurationYears || '—'} years, ${opt.renewalDurationMonths || '—'} months, ${opt.renewalDurationDays || '—'} days
+  First notice: ${opt.firstNoticeMonths || '—'} months
+  Last notice: ${opt.lastNoticeMonths || '—'} months`).join('\n\n') || 'N/A'
 
         const rentReviewDetails = [
           showFixedPct      ? `Fixed %: ${form.fixedPercentage}%` : null,
@@ -224,12 +261,12 @@ RENEWAL OPTIONS
 Option to Renew:            ${form.hasOptionToRenew}
 ${renewalSection}
 
-Market Review on Renewal:   ${form.hasMarketReview}
+Market Review on Renewal:   ${form.hasMarketReview || '—'}
 
-FINANCIAL DETAILS
------------------
+MONTHLY RENT DETAILS
+--------------------
 Current Base Rent (ex GST): $${form.currentBaseRent}
-Current Outgoings (ex GST): $${form.currentOutgoings}
+Current Outgoings (ex GST): ${form.currentOutgoings ? '$' + form.currentOutgoings : '—'}
 Current Gross Rent (ex GST):$${form.currentGrossRent}
 Tenancy Area (m²):          ${form.tenancyArea} m²
 
@@ -284,8 +321,6 @@ ${files.length ? files.map((f) => `• ${f.name}`).join('\n') : 'No documents at
 
       <main className={styles.main}>
         <div className={styles.card} ref={formRef}>
-
-          {/* ── Card header ── */}
           <div className={styles.cardHeader}>
             <p className={styles.projectTag}>Pharmacy Protect</p>
             <h1 className={styles.title}>Lease Information</h1>
@@ -295,7 +330,6 @@ ${files.length ? files.map((f) => `• ${f.name}`).join('\n') : 'No documents at
             </p>
           </div>
 
-          {/* ── Mode selector ── */}
           <div className={styles.modeSelector}>
             <button
               type="button"
@@ -333,7 +367,6 @@ ${files.length ? files.map((f) => `• ${f.name}`).join('\n') : 'No documents at
             </button>
           </div>
 
-          {/* ── Banners ── */}
           {status === 'success' && (
             <div className={styles.successBanner}>
               <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
@@ -361,22 +394,17 @@ ${files.length ? files.map((f) => `• ${f.name}`).join('\n') : 'No documents at
             </div>
           )}
 
-          {/* ── Form content (shown only after mode is chosen) ── */}
           {mode && (
             <form onSubmit={handleSubmit} noValidate>
-
-              {/* ── Trading Name (always shown) ── */}
               <section className={styles.section}>
                 <h2 className={styles.sectionTitle}>
                   {mode === 'document' ? 'Identify Your Tenancy' : 'Tenancy Details'}
                 </h2>
-
                 {mode === 'document' && (
                   <p className={styles.sectionDesc}>
                     Your trading name is required so we can match the documents to your account.
                   </p>
                 )}
-
                 <div className={styles.grid2}>
                   <Field label="Trading Name" required error={errors.tradingName}>
                     <input
@@ -389,7 +417,6 @@ ${files.length ? files.map((f) => `• ${f.name}`).join('\n') : 'No documents at
                     />
                   </Field>
 
-                  {/* Lessee + Lessor only in full form mode */}
                   {mode === 'form' && (
                     <>
                       <Field label="Lessee" required error={errors.lessee}>
@@ -417,10 +444,8 @@ ${files.length ? files.map((f) => `• ${f.name}`).join('\n') : 'No documents at
                 </div>
               </section>
 
-              {/* ── Full form sections ── */}
               {mode === 'form' && (
                 <>
-                  {/* Lease Term */}
                   <section className={styles.section}>
                     <h2 className={styles.sectionTitle}>Lease Term</h2>
                     <div className={styles.grid2}>
@@ -445,7 +470,6 @@ ${files.length ? files.map((f) => `• ${f.name}`).join('\n') : 'No documents at
                     </div>
                   </section>
 
-                  {/* Renewal Options */}
                   <section className={styles.section}>
                     <h2 className={styles.sectionTitle}>Renewal Options</h2>
                     <div className={styles.grid2}>
@@ -464,69 +488,86 @@ ${files.length ? files.map((f) => `• ${f.name}`).join('\n') : 'No documents at
                     </div>
 
                     {showRenewalFields && (
-                      <div className={styles.conditionalBlock}>
-                        <div className={styles.conditionalLabel}>Renewal Duration</div>
-                        <div className={styles.grid3}>
-                          <Field label="Duration (Years)" error={errors.renewalDurationYears}>
-                            <input
-                              name="renewalDurationYears"
-                              className={`${styles.input} ${errors.renewalDurationYears ? styles.inputError : ''}`}
-                              type="text" inputMode="numeric" placeholder="0"
-                              value={form.renewalDurationYears}
-                              onChange={setInt('renewalDurationYears')}
-                            />
-                          </Field>
-                          <Field label="Duration (Months)" error={errors.renewalDurationMonths}>
-                            <input
-                              name="renewalDurationMonths"
-                              className={`${styles.input} ${errors.renewalDurationMonths ? styles.inputError : ''}`}
-                              type="text" inputMode="numeric" placeholder="0"
-                              value={form.renewalDurationMonths}
-                              onChange={setInt('renewalDurationMonths')}
-                            />
-                          </Field>
-                          <Field label="Duration (Days)" error={errors.renewalDurationDays}>
-                            <input
-                              name="renewalDurationDays"
-                              className={`${styles.input} ${errors.renewalDurationDays ? styles.inputError : ''}`}
-                              type="text" inputMode="numeric" placeholder="0"
-                              value={form.renewalDurationDays}
-                              onChange={setInt('renewalDurationDays')}
-                            />
-                          </Field>
-                        </div>
-                        <div className={styles.grid2} style={{ marginTop: 16 }}>
-                          <Field label="First date to give notice (Months Prior)" required error={errors.firstNoticeMonths}>
-                            <select
-                              name="firstNoticeMonths"
-                              className={`${styles.select} ${errors.firstNoticeMonths ? styles.inputError : ''}`}
-                              value={form.firstNoticeMonths}
-                              onChange={set('firstNoticeMonths')}
-                            >
-                              <option value="">Select months…</option>
-                              {MONTHS_1_12.map((m) => <option key={m}>{m}</option>)}
-                            </select>
-                          </Field>
-                          <Field label="Last date to give notice (Months Prior)" required error={errors.lastNoticeMonths}>
-                            <select
-                              name="lastNoticeMonths"
-                              className={`${styles.select} ${errors.lastNoticeMonths ? styles.inputError : ''}`}
-                              value={form.lastNoticeMonths}
-                              onChange={set('lastNoticeMonths')}
-                            >
-                              <option value="">Select months…</option>
-                              {MONTHS_1_12.map((m) => <option key={m}>{m}</option>)}
-                            </select>
-                          </Field>
-                        </div>
-                      </div>
+                      <>
+                        {form.renewalOptions.map((opt, idx) => (
+                          <div key={idx} className={styles.conditionalBlock}>
+                            <div className={styles.conditionalLabel}>
+                              Renewal Duration Option {idx + 1}
+                              {form.renewalOptions.length > 1 && (
+                                <button
+                                  type="button"
+                                  className={styles.removeBtn}
+                                  onClick={() => removeRenewal(idx)}
+                                >
+                                  Remove
+                                </button>
+                              )}
+                            </div>
+                            <div className={styles.grid3}>
+                              <Field label="Duration (Years)">
+                                <input
+                                  className={`${styles.input}`}
+                                  type="text" inputMode="numeric" placeholder="0"
+                                  value={opt.renewalDurationYears}
+                                  onChange={setRenewalInt(idx, 'renewalDurationYears')}
+                                />
+                              </Field>
+                              <Field label="Duration (Months)">
+                                <input
+                                  className={`${styles.input}`}
+                                  type="text" inputMode="numeric" placeholder="0"
+                                  value={opt.renewalDurationMonths}
+                                  onChange={setRenewalInt(idx, 'renewalDurationMonths')}
+                                />
+                              </Field>
+                              <Field label="Duration (Days)">
+                                <input
+                                  className={`${styles.input}`}
+                                  type="text" inputMode="numeric" placeholder="0"
+                                  value={opt.renewalDurationDays}
+                                  onChange={setRenewalInt(idx, 'renewalDurationDays')}
+                                />
+                              </Field>
+                            </div>
+                            <div className={styles.grid2} style={{ marginTop: 16 }}>
+                              <Field label="First date to give notice (Months Prior)" error={errors[`renewal_${idx}_notice`]}>
+                                <select
+                                  className={`${styles.select} ${errors[`renewal_${idx}_notice`] ? styles.inputError : ''}`}
+                                  value={opt.firstNoticeMonths}
+                                  onChange={setRenewal(idx, 'firstNoticeMonths')}
+                                >
+                                  <option value="">Select months…</option>
+                                  {MONTHS_1_12.map((m) => <option key={m}>{m}</option>)}
+                                </select>
+                              </Field>
+                              <Field label="Last date to give notice (Months Prior)">
+                                <select
+                                  className={`${styles.select}`}
+                                  value={opt.lastNoticeMonths}
+                                  onChange={setRenewal(idx, 'lastNoticeMonths')}
+                                >
+                                  <option value="">Select months…</option>
+                                  {MONTHS_1_12.map((m) => <option key={m}>{m}</option>)}
+                                </select>
+                              </Field>
+                            </div>
+                          </div>
+                        ))}
+                        <button
+                          type="button"
+                          className={styles.addMoreBtn}
+                          onClick={addRenewal}
+                        >
+                          + Add more options
+                        </button>
+                      </>
                     )}
 
                     <div className={styles.grid2} style={{ marginTop: 16 }}>
-                      <Field label="Do you have a market review upon renewals?" required error={errors.hasMarketReview}>
+                      <Field label="Do you have a market review upon renewals?">
                         <select
                           name="hasMarketReview"
-                          className={`${styles.select} ${errors.hasMarketReview ? styles.inputError : ''}`}
+                          className={`${styles.select}`}
                           value={form.hasMarketReview}
                           onChange={set('hasMarketReview')}
                         >
@@ -538,9 +579,8 @@ ${files.length ? files.map((f) => `• ${f.name}`).join('\n') : 'No documents at
                     </div>
                   </section>
 
-                  {/* Financial Details */}
                   <section className={styles.section}>
-                    <h2 className={styles.sectionTitle}>Financial Details</h2>
+                    <h2 className={styles.sectionTitle}>Monthly Rent Details (What you pay the landlord)</h2>
                     <div className={styles.grid2}>
                       <Field label="Current Base Rent ($ ex GST)" required error={errors.currentBaseRent}>
                         <div className={styles.currencyWrapper}>
@@ -554,19 +594,19 @@ ${files.length ? files.map((f) => `• ${f.name}`).join('\n') : 'No documents at
                           />
                         </div>
                       </Field>
-                      <Field label="Current Outgoings ($ ex GST)" required error={errors.currentOutgoings}>
+                      <Field label="Current Outgoings ($ ex GST)">
                         <div className={styles.currencyWrapper}>
                           <span className={styles.currencyPrefix}>$</span>
                           <input
                             name="currentOutgoings"
-                            className={`${styles.input} ${styles.currencyInput} ${errors.currentOutgoings ? styles.inputError : ''}`}
+                            className={`${styles.input} ${styles.currencyInput}`}
                             type="text" inputMode="decimal" placeholder="0.00"
                             value={form.currentOutgoings}
                             onChange={setCurrency('currentOutgoings')}
                           />
                         </div>
                       </Field>
-                      <Field label="Current Gross (total) Rent ($ ex GST)" required error={errors.currentGrossRent}>
+                      <Field label="Current Gross (total) Rent ($ ex GST) (Total of Base + Outgoings or if you have a Gross lease)" required error={errors.currentGrossRent}>
                         <div className={styles.currencyWrapper}>
                           <span className={styles.currencyPrefix}>$</span>
                           <input
@@ -594,7 +634,6 @@ ${files.length ? files.map((f) => `• ${f.name}`).join('\n') : 'No documents at
                     </div>
                   </section>
 
-                  {/* Annual Rent Reviews */}
                   <section className={styles.section}>
                     <h2 className={styles.sectionTitle}>Annual Rent Reviews</h2>
                     <div className={styles.grid2}>
@@ -678,15 +717,14 @@ ${files.length ? files.map((f) => `• ${f.name}`).join('\n') : 'No documents at
                 </>
               )}
 
-              {/* ── Document upload (shown in both modes) ── */}
               <section className={styles.section}>
                 <h2 className={styles.sectionTitle}>
                   {mode === 'document' ? 'Upload Lease Documents' : 'Lease Documents (Optional)'}
                 </h2>
                 <p className={styles.sectionDesc}>
                   {mode === 'document'
-                    ? 'Upload your lease documents below. We accept PDF, Word, JPG, and PNG files.'
-                    : 'Optionally attach your lease documents alongside the form data.'}
+                    ? 'Optionally, you can simply drop your lease documents here in our secure Dropbox and we will extract the information for you. A current rent invoice also would be great.'
+                    : 'Optionally, you can simply drop your lease documents here in our secure Dropbox and we will extract the information for you. A current rent invoice also would be great.'}
                 </p>
 
                 <div
@@ -749,14 +787,13 @@ ${files.length ? files.map((f) => `• ${f.name}`).join('\n') : 'No documents at
                 )}
               </section>
 
-              {/* ── Submit ── */}
               <div className={styles.submitRow}>
                 <p className={styles.privacyNote}>
                   Your information is transmitted securely to the Lighthouse Insights team at{' '}
                   <a href="mailto:intelligence@lighthouseinsights.au" className={styles.emailLink}>
                     intelligence@lighthouseinsights.au
                   </a>
-                  . It will not be shared with third parties.
+                  . It remains 100% confidential at all times.
                 </p>
                 <button type="submit" className={styles.submitBtn} disabled={submitting}>
                   {submitting ? (

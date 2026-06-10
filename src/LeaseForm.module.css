@@ -388,6 +388,47 @@
   margin-bottom: 16px;
 }
 
+/* ── Add more / Remove buttons ── */
+.addMoreBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  padding: 8px 16px;
+  background: #f0f6ff;
+  color: #005aa9;
+  font-family: 'Roboto', Arial, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1.5px dashed #005aa9;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.addMoreBtn:hover {
+  background: #e8f0fb;
+}
+
+.removeBtn {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  background: #fff5f5;
+  color: #d12333;
+  font-family: 'Roboto', Arial, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid #fecaca;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.removeBtn:hover {
+  background: #fee2e2;
+}
+
 /* ── Drop zone ── */
 .dropZone {
   border: 2px dashed #c7d8ee;
