@@ -313,8 +313,7 @@ ${files.length ? files.map((f) => `• ${f.name}`).join('\n') : 'No documents at
       if (fileUrls.length > 0) {
         messageBody += '\n\nDOWNLOAD LINKS\n--------------\n'
         fileUrls.forEach((f) => {
-          const isPdf = f.name.toLowerCase().endsWith('.pdf')
-          const url = isPdf ? `${f.url}?fl_attachment` : f.url
+          const url = `${f.url}?fl_attachment=true&dl=true`
           messageBody += `${f.name}: ${url}\n`
         })
       }
