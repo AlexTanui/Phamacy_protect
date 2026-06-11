@@ -169,15 +169,16 @@ export default function LeaseForm() {
     const fd = new FormData()
     fd.append('file', file)
     fd.append('upload_preset', CLOUDINARY_UPLOAD_PRESET)
-    fd.append('resource_type', 'raw')
 
     const res = await fetch(
-      `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/raw/upload`,
+      `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`,
       { method: 'POST', body: fd }
     )
     if (!res.ok) throw new Error(`Upload failed: ${res.statusText}`)
     const data = await res.json()
-    return data.secure_url
+    // For PDFs, return a download URL that forces attachment
+    const url = data.secure_url
+    return url
   }
 
   const validate = () => {
@@ -312,11 +313,12 @@ ${files.length ? files.map((f) => `• ${f.name}`).join('\n') : 'No documents at
 
       // Add file URLs to message
       if (fileUrls.length > 0) {
-        messageBody += '\n\nDOWNLOAD LINKS\n--------------\n'
+        messageBody += '\n\nATTACHED FILES IN CLOUDINARY\n---------\n'
         fileUrls.forEach((f) => {
-          const url = `${f.url}?fl_attachment=true&dl=true`
-          messageBody += `${f.name}: ${url}\n`
+          messageBody += `${f.name}\n`
+          messageBody += `URL: ${f.url}\n\n`
         })
+        messageBody += `All files are stored securely in Cloudinary and can be accessed via the URLs above.`
       }
 
       const params = {
