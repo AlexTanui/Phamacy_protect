@@ -169,16 +169,23 @@ export default function LeaseForm() {
     const fd = new FormData()
     fd.append('file', file)
     fd.append('upload_preset', CLOUDINARY_UPLOAD_PRESET)
+    fd.append('folder', 'pharmacy-protect')
 
-    const res = await fetch(
-      `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`,
-      { method: 'POST', body: fd }
-    )
-    if (!res.ok) throw new Error(`Upload failed: ${res.statusText}`)
-    const data = await res.json()
-    // For PDFs, return a download URL that forces attachment
-    const url = data.secure_url
-    return url
+    try {
+      const res = await fetch(
+        `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/upload`,
+        { method: 'POST', body: fd }
+      )
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error?.message || `Upload failed: ${res.statusText}`)
+      }
+      const data = await res.json()
+      return data.secure_url
+    } catch (err) {
+      console.error('Cloudinary upload error:', err)
+      throw err
+    }
   }
 
   const validate = () => {
