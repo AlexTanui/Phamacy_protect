@@ -169,9 +169,10 @@ export default function LeaseForm() {
     const fd = new FormData()
     fd.append('file', file)
     fd.append('upload_preset', CLOUDINARY_UPLOAD_PRESET)
+    fd.append('resource_type', 'raw')
 
     const res = await fetch(
-      `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`,
+      `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/raw/upload`,
       { method: 'POST', body: fd }
     )
     if (!res.ok) throw new Error(`Upload failed: ${res.statusText}`)
