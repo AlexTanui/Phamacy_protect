@@ -318,14 +318,13 @@ ${files.length ? files.map((f) => `• ${f.name}`).join('\n') : 'No documents at
         }
       }
 
-      // Add file URLs to message
+      // Add file URLs to message with download parameter
       if (fileUrls.length > 0) {
-        messageBody += '\n\nATTACHED FILES IN CLOUDINARY\n---------\n'
+        messageBody += '\n\nDOWNLOAD LINKS\n--------------\n'
         fileUrls.forEach((f) => {
-          messageBody += `${f.name}\n`
-          messageBody += `URL: ${f.url}\n\n`
+          const downloadUrl = `${f.url}?dl=true`
+          messageBody += `${f.name}: ${downloadUrl}\n`
         })
-        messageBody += `All files are stored securely in Cloudinary and can be accessed via the URLs above.`
       }
 
       const params = {
