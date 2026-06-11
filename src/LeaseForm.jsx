@@ -1,8 +1,11 @@
 import { useState, useRef, useCallback } from 'react'
+import emailjs from '@emailjs/browser'
 import LighthouseLogo from './LighthouseLogo'
 import styles from './LeaseForm.module.css'
 
-const FORMSPREE_ENDPOINT = 'https://formspree.io/f/xqeobala'
+const EMAILJS_SERVICE_ID  = import.meta.env.VITE_EMAILJS_SERVICE_ID  || 'YOUR_SERVICE_ID'
+const EMAILJS_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID || 'YOUR_TEMPLATE_ID'
+const EMAILJS_PUBLIC_KEY  = import.meta.env.VITE_EMAILJS_PUBLIC_KEY  || 'YOUR_PUBLIC_KEY'
 const CLOUDINARY_CLOUD_NAME = 'drgpnvqa8'
 const CLOUDINARY_UPLOAD_PRESET = 'Phamacy protect'
 
@@ -314,19 +317,14 @@ ${files.length ? files.map((f) => `• ${f.name}`).join('\n') : 'No documents at
         })
       }
 
-      const fd = new FormData()
-      fd.append('_subject', subject)
-      fd.append('message', messageBody)
-
-      const res = await fetch(FORMSPREE_ENDPOINT, {
-        method: 'POST',
-        body: fd,
-        headers: { Accept: 'application/json' },
-      })
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(data?.error || `HTTP ${res.status}`)
+      const params = {
+        to_email:  'intelligence@lighthouseinsights.au',
+        from_name: form.tradingName,
+        subject,
+        message:   messageBody,
       }
+
+      await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, params, EMAILJS_PUBLIC_KEY)
 
       setStatus('success')
       setForm(EMPTY_FORM)
